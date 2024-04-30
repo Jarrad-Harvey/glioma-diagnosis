@@ -2,13 +2,13 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import ImageTk, Image
 import numpy as np
+import h5py
 
 class ImageGUI:
 
     # Change detection method
     def onChanges(self, value):
-        # TODO
-        return
+        self.update_image()
    
     def __init__(self, master):
         self.master = master
@@ -71,26 +71,28 @@ class ImageGUI:
         self.slice_ID_slider.pack(side=tk.RIGHT, padx=5, pady=5, fill='x', expand='true')
 
         # Initialise image
-        self.load_slice_directory('peppers.png')
+        self.load_slice_directory('example volume')
 
 
     # Load an image and display it
-    def load_slice_directory(self, file_path=''):
-        if not file_path:
-            # Open a file selection dialog box to choose an image file
-            # TODO: Select folders instead of files
-            file_path = filedialog.askopenfilename(title="Select Slice Directory", filetypes=[("Image Files", "*.png *.jpg *.jpeg *.bmp *.gif")])
-        self.image_path = file_path
+    def load_slice_directory(self, folder_path=''):
+        if not folder_path:
+            # Open a folder selection dialog box to choose a directory
+            folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
+        self.folder_path = folder_path
 
-        # TODO: Search the directory and track the H5 files according to the filename conventions of the downloaded dataset.
-        
-        # Load the chosen image using PIL
-        image = Image.open(file_path)
+        # Search the directory and track the H5 files according to the filename conventions of the downloaded dataset.
+        volume = []
+        for i in range(155):
+            file_path = folder_path + '/volume_1_slice_%i.h5' % i
+            file = h5py.File(file_path, 'r')
+            dataset = file['image'][:] * 100                    #XXX: How should we normalise the array?
+            image = Image.fromarray(dataset.astype("uint8"))
+            volume.append(image)
+        self.volume = volume
         
         # Display image
-        self.original_image = image
-        photo = self.prepare_photo(self.original_image, convertToPIL=False)
-        self.update_image(photo)
+        self.update_image()
     
 
     # Resize and convert the image so it can be displayed.
@@ -118,7 +120,11 @@ class ImageGUI:
 
 
     # Display a new photo in the GUI
-    def update_image(self, photo):
+    def update_image(self):
+        slice_ID = self.slice_ID_var.get()
+        image = self.volume[slice_ID]
+        photo = self.prepare_photo(image, convertToPIL=False)
+
         self.original_image_label.configure(image=photo)
         self.original_image_label.image = photo
 
