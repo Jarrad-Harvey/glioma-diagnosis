@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import ImageTk, Image
 import numpy as np
-import cv2
 
 class ImageGUI:
 
