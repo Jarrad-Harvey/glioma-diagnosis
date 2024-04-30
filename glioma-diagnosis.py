@@ -55,20 +55,20 @@ class ImageGUI:
         self.annotation_label.pack(side=tk.LEFT, padx=5, pady=5)
         self.channel_var = tk.StringVar()
         self.channel_var.set(channel_options[0])
-        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *channel_options, command=self.update_image)
+        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *channel_options, command=self.onChanges)
         self.channel_menu.pack(side=tk.LEFT, padx=5, pady=5)
         # Create drop down menus for toggling annotation visibility
         annotation_options = ('On', 'Off')
         self.annotation_var = tk.StringVar()
         self.annotation_var.set(annotation_options[0])
-        self.annotation_menu = tk.OptionMenu(self.options_row_4, self.annotation_var, *annotation_options, command=self.update_image)
+        self.annotation_menu = tk.OptionMenu(self.options_row_4, self.annotation_var, *annotation_options, command=self.onChanges)
         self.annotation_menu.pack(side=tk.RIGHT, padx=5, pady=5)
         self.annotation_label = tk.Label(self.options_row_4, text='Annotation:')
         self.annotation_label.pack(side=tk.RIGHT, padx=5, pady=5)
         # Create a Scale widget for the slice ID
         self.slice_ID_var = tk.IntVar()
         self.slice_ID_var.set(60)
-        self.slice_ID_slider = tk.Scale(self.options_row_3, from_=0, to=155, resolution=1, orient=tk.HORIZONTAL, label="Slice ID", variable=self.slice_ID_var, command=self.onChanges)
+        self.slice_ID_slider = tk.Scale(self.options_row_3, from_=0, to=154, resolution=1, orient=tk.HORIZONTAL, label="Slice ID", variable=self.slice_ID_var, command=self.onChanges)
         self.slice_ID_slider.pack(side=tk.RIGHT, padx=5, pady=5, fill='x', expand='true')
 
         # Initialise image
@@ -125,13 +125,13 @@ class ImageGUI:
 
 
     # XXX
-    def extract_radiomic_features():
+    def extract_radiomic_features(self):
         # TODO
         return
     
 
     # XXX
-    def extract_conventional_features():
+    def extract_conventional_features(self):
         # TODO
         return
 
