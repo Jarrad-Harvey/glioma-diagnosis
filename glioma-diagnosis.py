@@ -159,6 +159,7 @@ class ImageGUI:
                 tumor_diameter = np.max(projected_tumor_pixels) - np.min(projected_tumor_pixels)
                 max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
         return max_tumor_diameter
+    
     # XXX
     def extract_conventional_features(self):
             folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
@@ -197,15 +198,15 @@ class ImageGUI:
                         max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
                         max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-                        # # Calculate outer layer involvement
-                        # #threshold = np.percentile(datasetImage, 95) 
-                        # threshold = threshold_otsu(datasetImage) 
-                        # outer_layer_pixels = datasetImage[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
-                        # outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
-                        # outer_layer_involvement_sum += outer_layer_involvement
+                        # Calculate outer layer involvement
+                        threshold = np.percentile(datasetImage, 94.3) 
+                        #threshold = threshold_otsu(datasetImage) 
+                        outer_layer_pixels = datasetImage[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
+                        outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
+                        outer_layer_involvement_sum += outer_layer_involvement
 
                     # Average outer layer involvement across all slices
-                    outer_layer_involvement_avg = outer_layer_involvement_sum / (155 * len(os.listdir(self.folder_path)))
+                    outer_layer_involvement_avg = outer_layer_involvement_sum / (155 * len(os.listdir(self.folder_path))) *100
                     Voulume_Number = 'Volume_' + str(volume_idx + 1)
                     # Write results to CSV
                     csv_writer.writerow([Voulume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
