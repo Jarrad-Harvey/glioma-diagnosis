@@ -2,10 +2,15 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import ImageTk, Image
 import numpy as np
-import h5py
 import os
 import csv
+import cv2
 from sklearn.decomposition import PCA
+from skimage import color
+from skimage.filters import threshold_otsu
+import imageio
+import h5py
+
 
 class ImageGUI:
 
@@ -90,7 +95,7 @@ class ImageGUI:
             file_path = folder_path + '/volume_1_slice_%i.h5' % i
             file = h5py.File(file_path, 'r')
             dataset = file['image'][:] * 100
-            print(dataset)                    #XXX: How should we normalise the array?
+            #print(dataset)                    #XXX: How should we normalise the array?
             image = Image.fromarray(dataset.astype("uint8"))
             volume.append(image)
         self.volume = volume
@@ -138,7 +143,22 @@ class ImageGUI:
         # TODO
         return
     
-
+    def calculate_max_tumor_diameter(self, segmentation_masks):
+        max_tumor_diameter = 0
+        for mask in segmentation_masks:
+            # Find coordinates of tumor pixels
+            tumor_pixels = np.argwhere(mask > 0)
+            if len(tumor_pixels) > 1:
+                # Perform PCA to find the longest linear measurement
+                pca = PCA(n_components=2)
+                pca.fit(tumor_pixels)
+                eigen_vectors = pca.components_
+                # Project tumor pixels onto the first principal component
+                projected_tumor_pixels = np.dot(tumor_pixels - pca.mean_, eigen_vectors[0])
+                # Calculate the longest linear measurement along the principal component
+                tumor_diameter = np.max(projected_tumor_pixels) - np.min(projected_tumor_pixels)
+                max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
+        return max_tumor_diameter
     # XXX
     def extract_conventional_features(self):
             folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
@@ -161,26 +181,28 @@ class ImageGUI:
                         # Process each slice in the volume
                         file_path = os.path.join(volume_folder, 'volume_%d_slice_%d.h5' % (volume_idx + 1, slice_idx))
                         file = h5py.File(file_path, 'r')
-                        dataset = file['image'][:] * 100
-                        data = np.array(dataset)
-                        mean_intensity = np.mean(data)
-                        std_intensity = np.std(data)
-                        threshold = mean_intensity - 2 * std_intensity
+                        datasetMask = file['mask'][:]
+                        datasetImage = file['image'][:]
+                        masks_list = [datasetMask[:, :, i] for i in range(datasetMask.shape[2])]
+                        #grayscale_dataset = [color.rgb2gray(image) for image in dataset]
+                        #image = Image.fromarray(dataset.astype("uint8"))
+                        # Calculate mean and standard deviation
+                        #mean_intensity = np.mean(dataset)
+                        #std_intensity = np.std(dataset)
+                        #threshold = mean_intensity - 2 * std_intensity
                         # Calculate maximum tumor area
-                        tumor_area = np.sum(dataset > threshold)
+                        tumor_area = np.sum(datasetMask)
                         max_tumor_area = max(max_tumor_area, tumor_area)
+                        # Calculating maximum tumor diameter
+                        max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
+                        max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-                        pca = PCA(n_components=2)
-                        flattened_dataset = dataset.flatten()
-                        pca.fit(flattened_dataset.reshape(-1, 1))
-                        eigen_vectors = pca.components_
-                        tumor_diameter = np.linalg.norm(eigen_vectors[0]) 
-                        max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
-
-                        # Calculate outer layer involvement
-                        outer_layer_pixels = dataset[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
-                        outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
-                        outer_layer_involvement_sum += outer_layer_involvement
+                        # # Calculate outer layer involvement
+                        # #threshold = np.percentile(datasetImage, 95) 
+                        # threshold = threshold_otsu(datasetImage) 
+                        # outer_layer_pixels = datasetImage[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
+                        # outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
+                        # outer_layer_involvement_sum += outer_layer_involvement
 
                     # Average outer layer involvement across all slices
                     outer_layer_involvement_avg = outer_layer_involvement_sum / (155 * len(os.listdir(self.folder_path)))
