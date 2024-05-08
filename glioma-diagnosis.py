@@ -3,6 +3,9 @@ from tkinter import filedialog
 from PIL import ImageTk, Image
 import numpy as np
 import h5py
+import os
+import csv
+from sklearn.decomposition import PCA
 
 class ImageGUI:
 
@@ -86,7 +89,8 @@ class ImageGUI:
         for i in range(155):
             file_path = folder_path + '/volume_1_slice_%i.h5' % i
             file = h5py.File(file_path, 'r')
-            dataset = file['image'][:] * 100                    #XXX: How should we normalise the array?
+            dataset = file['image'][:] * 100
+            print(dataset)                    #XXX: How should we normalise the array?
             image = Image.fromarray(dataset.astype("uint8"))
             volume.append(image)
         self.volume = volume
@@ -137,9 +141,54 @@ class ImageGUI:
 
     # XXX
     def extract_conventional_features(self):
-        # TODO
-        return
+            folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
+            self.folder_path = folder_path
+            # Create or overwrite the CSV file to store the results
+            csv_file_path = 'conventional_features.csv'
+            with open(csv_file_path, 'w', newline='') as csvfile:
+                csv_writer = csv.writer(csvfile)
+                csv_writer.writerow(['Volume', 'Max Tumor Area', 'Max Tumor Diameter', 'Outer Layer Involvement'])
 
+                for volume_idx, volume_path in enumerate(os.listdir(self.folder_path)):
+                    # Process each volume
+                    volume_folder = os.path.join(self.folder_path, volume_path)
+
+                    max_tumor_area = 0
+                    max_tumor_diameter = 0
+                    outer_layer_involvement_sum = 0
+
+                    for slice_idx in range(155):
+                        # Process each slice in the volume
+                        file_path = os.path.join(volume_folder, 'volume_%d_slice_%d.h5' % (volume_idx + 1, slice_idx))
+                        file = h5py.File(file_path, 'r')
+                        dataset = file['image'][:] * 100
+                        data = np.array(dataset)
+                        mean_intensity = np.mean(data)
+                        std_intensity = np.std(data)
+                        threshold = mean_intensity - 2 * std_intensity
+                        # Calculate maximum tumor area
+                        tumor_area = np.sum(dataset > threshold)
+                        max_tumor_area = max(max_tumor_area, tumor_area)
+
+                        pca = PCA(n_components=2)
+                        flattened_dataset = dataset.flatten()
+                        pca.fit(flattened_dataset.reshape(-1, 1))
+                        eigen_vectors = pca.components_
+                        tumor_diameter = np.linalg.norm(eigen_vectors[0]) 
+                        max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
+
+                        # Calculate outer layer involvement
+                        outer_layer_pixels = dataset[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
+                        outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
+                        outer_layer_involvement_sum += outer_layer_involvement
+
+                    # Average outer layer involvement across all slices
+                    outer_layer_involvement_avg = outer_layer_involvement_sum / (155 * len(os.listdir(self.folder_path)))
+                    Voulume_Number = 'Volume_' + str(volume_idx + 1)
+                    # Write results to CSV
+                    csv_writer.writerow([Voulume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
+
+            print("Conventional features extracted and saved to:", csv_file_path)
             
 if __name__ == "__main__":
     root = tk.Tk()
