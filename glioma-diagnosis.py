@@ -160,59 +160,109 @@ class ImageGUI:
                 max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
         return max_tumor_diameter
     
-    # XXX
+    def generate_Outer_Layer(self, contours, image_w, image_h):
+        # Create a blank image to store the contour
+        Outer_Layer = np.zeros((image_w, image_h), dtype=np.uint8)
+
+        # Draw each contour onto the blank image
+        cv2.drawContours(Outer_Layer, contours, -1, 255, thickness=1)
+
+        # Return the image of the contour
+        return Outer_Layer
+    
+    def shrink_image(self, image):
+        # Define a kernel for erosion
+        kernel = np.ones((2,2), np.uint8)
+        # Erode the image
+        eroded_image = cv2.erode(image, kernel, iterations=1)
+        # Convert the eroded image back to np.uint8
+        eroded_image = eroded_image.astype(np.uint8)
+        return eroded_image
+
+    def outer_contours(self, image):
+        # Set variables for the width and height of the image, and the number of layers required for the combined contour
+        image_w = image.shape[1]
+        image_h = image.shape[0]
+        outer_layers = 5
+        i = 0
+
+        # Convert the grayscale image of the brain into a binarized format
+        ret, image_th = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY)
+
+        # Convert the image to the correct datatype and create a blank image to store the created contours
+        image_uint8 = image_th.astype(np.uint8)
+        collected_contours = np.zeros((image_w, image_h))
+
+        # Loop to calculate the contours of the outer contour and accumulate them
+        while i < outer_layers:
+            contours, _ = cv2.findContours(image_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            if len(contours) == 0:
+                i+= 1
+                continue
+
+            # Call the generate_Outer_Layers function to return an image of the contour
+            contour_image = self.generate_Outer_Layer(contours, image_w, image_h)
+
+            # Add the image of the contour to the accumulated image
+            collected_contours += contour_image
+            # Shrink image by 1 pixel
+            image_uint8 =  self.shrink_image(image_uint8) 
+            i+= 1
+
+        # Return the combined image of the contours
+        return collected_contours
+
+    def merge_mask(self, mask_array):
+        # Merge non-overlapping masks by addition
+        merged_Mask = mask_array[0] + mask_array[1] + mask_array[2]
+        return merged_Mask
+
     def extract_conventional_features(self):
-            folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
-            self.folder_path = folder_path
-            # Create or overwrite the CSV file to store the results
-            csv_file_path = 'conventional_features.csv'
-            with open(csv_file_path, 'w', newline='') as csvfile:
-                csv_writer = csv.writer(csvfile)
-                csv_writer.writerow(['Volume', 'Max Tumor Area', 'Max Tumor Diameter', 'Outer Layer Involvement'])
+        folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
+        self.folder_path = folder_path
+        # Create or overwrite the CSV file to store the results
+        csv_file_path = 'conventional_features.csv'
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['Volume', 'Max Tumor Area', 'Max Tumor Diameter', 'Outer Layer Involvement'])
 
-                for volume_idx, volume_path in enumerate(os.listdir(self.folder_path)):
-                    # Process each volume
-                    volume_folder = os.path.join(self.folder_path, volume_path)
+            for volume_idx, volume_path in enumerate(os.listdir(self.folder_path)):
+                # Process each volume
+                volume_folder = os.path.join(self.folder_path, volume_path)
 
-                    max_tumor_area = 0
-                    max_tumor_diameter = 0
-                    outer_layer_involvement_sum = 0
+                max_tumor_area = 0
+                max_tumor_diameter = 0
+                total_voxels = 0
+                total_cortex_voxels = 0
 
-                    for slice_idx in range(155):
-                        # Process each slice in the volume
-                        file_path = os.path.join(volume_folder, 'volume_%d_slice_%d.h5' % (volume_idx + 1, slice_idx))
-                        file = h5py.File(file_path, 'r')
-                        datasetMask = file['mask'][:]
-                        datasetImage = file['image'][:]
-                        masks_list = [datasetMask[:, :, i] for i in range(datasetMask.shape[2])]
-                        #grayscale_dataset = [color.rgb2gray(image) for image in dataset]
-                        #image = Image.fromarray(dataset.astype("uint8"))
-                        # Calculate mean and standard deviation
-                        #mean_intensity = np.mean(dataset)
-                        #std_intensity = np.std(dataset)
-                        #threshold = mean_intensity - 2 * std_intensity
-                        # Calculate maximum tumor area
-                        tumor_area = np.sum(datasetMask)
-                        max_tumor_area = max(max_tumor_area, tumor_area)
-                        # Calculating maximum tumor diameter
-                        max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
-                        max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
+                for slice_idx in range(155):
+                    # Process each slice in the volume
+                    file_path = os.path.join(volume_folder, 'volume_%d_slice_%d.h5' % (volume_idx + 1, slice_idx))
+                    file = h5py.File(file_path, 'r')
+                    datasetMask = file['mask'][:]
+                    datasetImage = file['image'][:]
+                    masks_list = [datasetMask[:, :, i] for i in range(datasetMask.shape[2])]
 
-                        # Calculate outer layer involvement
-                        threshold = np.percentile(datasetImage, 94.3) 
-                        #threshold = threshold_otsu(datasetImage) 
-                        outer_layer_pixels = datasetImage[:, :, 0:5]  # Assuming outer layer thickness is 5 pixels
-                        outer_layer_involvement = np.mean(outer_layer_pixels > threshold)
-                        outer_layer_involvement_sum += outer_layer_involvement
+                    tumor_area = np.sum(datasetMask)
+                    max_tumor_area = max(max_tumor_area, tumor_area)
 
-                    # Average outer layer involvement across all slices
-                    outer_layer_involvement_avg = outer_layer_involvement_sum / (155 * len(os.listdir(self.folder_path))) *100
-                    Voulume_Number = 'Volume_' + str(volume_idx + 1)
-                    # Write results to CSV
-                    csv_writer.writerow([Voulume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
+                    max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
+                    max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-            print("Conventional features extracted and saved to:", csv_file_path)
-            
+                    merged_mask = self.merge_mask(masks_list)
+                    Outer_layer = self.outer_contours(datasetImage[:, :, 1])
+                    glioma_overlap = cv2.bitwise_and(Outer_layer.astype(np.uint8), merged_mask)
+                    voxel_count = np.count_nonzero(glioma_overlap == 1)
+                    total_voxels += voxel_count
+
+                    cortex_voxels = np.count_nonzero(Outer_layer)
+                    total_cortex_voxels += cortex_voxels
+
+                outer_layer_involvement_avg = (total_voxels / total_cortex_voxels) * 100
+                Voulume_Number = 'Volume_' + str(volume_idx + 1)
+                csv_writer.writerow([Voulume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
+
+        print("Conventional features extracted and saved to:", csv_file_path)
 if __name__ == "__main__":
     root = tk.Tk()
     gui = ImageGUI(root)
