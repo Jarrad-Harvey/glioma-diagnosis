@@ -10,6 +10,8 @@ from skimage import color
 from skimage.filters import threshold_otsu
 import imageio
 import h5py
+from radiomics import featureextractor
+
 
 
 class ImageGUI:
