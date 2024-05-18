@@ -59,12 +59,12 @@ class ImageGUI:
     
         ##### Option widgets
         # Create a drop down menu for switching the channel
-        channel_options = ('T1', 'T1Gd', 'T2', 'T2-FLAI')
+        self.channel_options = ('T1', 'T1Gd', 'T2', 'T2-FLAI')
         self.annotation_label = tk.Label(self.options_row_4, text='Channel:')
         self.annotation_label.pack(side=tk.LEFT, padx=5, pady=5)
         self.channel_var = tk.StringVar()
-        self.channel_var.set(channel_options[0])
-        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *channel_options, command=self.onChanges)
+        self.channel_var.set(self.channel_options[0])
+        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *self.channel_options, command=self.onChanges)
         self.channel_menu.pack(side=tk.LEFT, padx=5, pady=5)
         # Create drop down menus for toggling annotation visibility
         annotation_options = ('On', 'Off')
@@ -96,10 +96,9 @@ class ImageGUI:
         for i in range(155):
             file_path = folder_path + '/volume_1_slice_%i.h5' % i
             file = h5py.File(file_path, 'r')
-            dataset = file['image'][:] * 100
-            #print(dataset)                    #XXX: How should we normalise the array?
-            image = Image.fromarray(dataset.astype("uint8"))
-            volume.append(image)
+            image = file['image'][:] * 100                      #XXX: How should we normalise the array?
+            channels = [Image.fromarray(image[:, :, i]) for i in range(len(self.channel_options))]
+            volume.append(channels)
         self.volume = volume
         
         # Display image
@@ -133,7 +132,9 @@ class ImageGUI:
     # Display a new photo in the GUI
     def update_image(self):
         slice_ID = self.slice_ID_var.get()
-        image = self.volume[slice_ID]
+        channel_ID = self.channel_options.index(self.channel_var.get())
+
+        image = self.volume[slice_ID][channel_ID]
         photo = self.prepare_photo(image, convertToPIL=False)
 
         self.original_image_label.configure(image=photo)
