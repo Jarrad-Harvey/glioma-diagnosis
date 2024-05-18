@@ -6,10 +6,10 @@ import os
 import csv
 import cv2
 from sklearn.decomposition import PCA
-from skimage import color
-from skimage.filters import threshold_otsu
-import imageio
 import h5py
+from scipy.stats import pearsonr
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import euclidean_distances
 
 
 class ImageGUI:
@@ -138,26 +138,104 @@ class ImageGUI:
         self.original_image_label.image = photo
 
 
+    def select_top_features_by_group(self, features_sets_grouped):
+        top_features = {}
+        
+        for group_name, features_sets in features_sets_grouped.items():
+            n_features = features_sets[0].shape[0]
+            repeatability_scores = np.zeros(n_features)
+            
+            # Calculate repeatability scores for each feature across all pairs of feature sets
+            n_sets = len(features_sets)
+            for i in range(n_sets):
+                for j in range(i + 1, n_sets):
+                    for feature_idx in range(n_features):
+                        feature_set_1 = features_sets[i][feature_idx, :]
+                        feature_set_2 = features_sets[j][feature_idx, :]
+                        pearson_corr, cos_similarity, euclidean_dist = self.calculate_repeatability(feature_set_1, feature_set_2)
+                        
+                        # Combine the scores into a single repeatability score for this pair
+                        repeatability_score = (pearson_corr + cos_similarity - euclidean_dist) / 3
+                        repeatability_scores[feature_idx] += repeatability_score
+            
+            # Normalize by the number of comparisons
+            n_comparisons = n_sets * (n_sets - 1) / 2
+            repeatability_scores /= n_comparisons
+            
+            # Sort features based on repeatability scores
+            sorted_features = sorted(enumerate(repeatability_scores), key=lambda x: x[1], reverse=True)
+            
+            # Select top 10 features
+            top_10_features_indices = [idx for idx, _ in sorted_features[:10]]
+            
+            top_features[group_name] = top_10_features_indices
+        
+        return top_features
+    
     # XXX
     def extract_radiomic_features(self):
-        # TODO
-        return
+        features_day1_intensity = np.random.rand(20, 10)
+        features_day1_shape = np.random.rand(20, 10)
+        features_day1_texture = np.random.rand(20, 10)
+
+        features_day2_intensity = np.random.rand(20, 10)
+        features_day2_shape = np.random.rand(20, 10)
+        features_day2_texture = np.random.rand(20, 10)
+
+        features_day3_intensity = np.random.rand(20, 10)
+        features_day3_shape = np.random.rand(20, 10)
+        features_day3_texture = np.random.rand(20, 10)
+
+        features_day4_intensity = np.random.rand(20, 10)
+        features_day4_shape = np.random.rand(20, 10)
+        features_day4_texture = np.random.rand(20, 10)
+
+        # Put all feature sets into a dictionary grouped by feature type
+        features_sets_grouped = {
+            'intensity': [
+                features_day1_intensity, features_day2_intensity, features_day3_intensity, features_day4_intensity
+            ],
+            'shape': [
+                features_day1_shape, features_day2_shape, features_day3_shape, features_day4_shape
+            ],
+            'texture': [
+                features_day1_texture, features_day2_texture, features_day3_texture, features_day4_texture
+            ]
+        }
+
+        # Select top 10 features for each group
+        top_features = self.select_top_features_by_group(features_sets_grouped)
+
+        print("Top 10 intensity features:", top_features['intensity'])
+        print("Top 10 shape features:", top_features['shape'])
+        print("Top 10 texture features:", top_features['texture'])
     
-    def calculate_max_tumor_diameter(self, segmentation_masks):
+    def calculate_repeatability(self, feature_set_1, feature_set_2):
+        # Pearson correlation coefficient
+        pearson_corr, _ = pearsonr(feature_set_1, feature_set_2)
+        
+        # Cosine similarity
+        cos_similarity = cosine_similarity([feature_set_1], [feature_set_2])[0][0]
+        
+        # Euclidean distance (we use the negative distance to be consistent with correlation and similarity measures)
+        euclidean_dist = -euclidean_distances([feature_set_1], [feature_set_2])[0][0]
+        
+        return pearson_corr, cos_similarity, euclidean_dist
+
+    def calculate_max_tumor_diameter(self, merged_mask):
         max_tumor_diameter = 0
-        for mask in segmentation_masks:
-            # Find coordinates of tumor pixels
-            tumor_pixels = np.argwhere(mask > 0)
-            if len(tumor_pixels) > 1:
-                # Perform PCA to find the longest linear measurement
-                pca = PCA(n_components=2)
-                pca.fit(tumor_pixels)
-                eigen_vectors = pca.components_
-                # Project tumor pixels onto the first principal component
-                projected_tumor_pixels = np.dot(tumor_pixels - pca.mean_, eigen_vectors[0])
-                # Calculate the longest linear measurement along the principal component
-                tumor_diameter = np.max(projected_tumor_pixels) - np.min(projected_tumor_pixels)
-                max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
+        # Find coordinates of tumor pixels
+        tumor_pixels = np.argwhere(merged_mask > 0)
+        if len(tumor_pixels) > 1:
+            # Perform PCA to find the longest linear measurement
+            pca = PCA(n_components=2)
+            pca.fit(tumor_pixels)
+            eigen_vectors = pca.components_
+            # Project tumor pixels onto the first principal component
+            projected_tumor_pixels = np.dot(tumor_pixels - pca.mean_, eigen_vectors[0])
+            # Calculate the longest linear measurement along the principal component
+            max_tumor_diameter = np.max(projected_tumor_pixels) - np.min(projected_tumor_pixels)
+            #max_tumor_diameter = max(max_tumor_diameter, tumor_diameter)
         return max_tumor_diameter
     
     def generate_Outer_Layer(self, contours, image_w, image_h):
@@ -242,14 +320,14 @@ class ImageGUI:
                     datasetMask = file['mask'][:]
                     datasetImage = file['image'][:]
                     masks_list = [datasetMask[:, :, i] for i in range(datasetMask.shape[2])]
-
-                    tumor_area = np.sum(datasetMask)
+                    merged_mask = self.merge_mask(masks_list)
+                    tumor_area = np.sum(merged_mask)
                     max_tumor_area = max(max_tumor_area, tumor_area)
 
-                    max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
+                    max_tumor_diameter_slice = self.calculate_max_tumor_diameter(merged_mask)
                     max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-                    merged_mask = self.merge_mask(masks_list)
+                    
                     Outer_layer = self.outer_contours(datasetImage[:, :, 1])
                     glioma_overlap = cv2.bitwise_and(Outer_layer.astype(np.uint8), merged_mask)
                     voxel_count = np.count_nonzero(glioma_overlap == 1)
