@@ -11,6 +11,7 @@ from skimage.filters import threshold_otsu
 import imageio
 import h5py
 from radiomics import featureextractor
+import SimpleITK as sitk
 
 
 
@@ -94,11 +95,23 @@ class ImageGUI:
         # Search the directory and track the H5 files according to the filename conventions of the downloaded dataset.
         volume = []
         for i in range(155):
+            # Read file
             file_path = folder_path + '/volume_1_slice_%i.h5' % i
             file = h5py.File(file_path, 'r')
+            
+            # Extract image
             image = file['image'][:] * 100                      #XXX: How should we normalise the array?
             channels = [Image.fromarray(image[:, :, i]) for i in range(len(self.channel_options))]
-            volume.append(channels)
+            
+            # Extract mask
+            masks = file['mask'][:]
+            merged_mask = self.merge_mask(masks)
+
+            volume.append({
+                "image": channels,
+                "mask": merged_mask
+            })
+
         self.volume = volume
         
         # Display image
@@ -131,19 +144,34 @@ class ImageGUI:
 
     # Display a new photo in the GUI
     def update_image(self):
-        slice_ID = self.slice_ID_var.get()
-        channel_ID = self.channel_options.index(self.channel_var.get())
-
-        image = self.volume[slice_ID][channel_ID]
+        image, _ = self.get_current_image()
         photo = self.prepare_photo(image, convertToPIL=False)
 
         self.original_image_label.configure(image=photo)
         self.original_image_label.image = photo
 
 
+    def get_current_image(self):
+        slice_ID = self.slice_ID_var.get()
+        channel_ID = self.channel_options.index(self.channel_var.get())
+
+        image = self.volume[slice_ID]["image"][channel_ID]
+        mask = self.volume[slice_ID]["mask"]
+        return image, mask
+
+
     # XXX
     def extract_radiomic_features(self):
-        # TODO
+        image, mask = self.get_current_image()
+        sitk_volume = sitk.GetImageFromArray(image)
+        sitk_mask = sitk.GetImageFromArray(mask)
+        
+        extractor = featureextractor.RadiomicsFeatureExtractor()
+
+        result = extractor.execute(sitk_volume, sitk_mask)
+        for key, val in result.items():
+            print("\t%s: %s" % (key, val))
+
         return
     
     def calculate_max_tumor_diameter(self, segmentation_masks):
@@ -215,7 +243,10 @@ class ImageGUI:
         # Return the combined image of the contours
         return collected_contours
 
-    def merge_mask(self, mask_array):
+    def merge_mask(self, masks):
+        # Reshape masks array
+        mask_array = [masks[:, :, i] for i in range(masks.shape[2])]
+
         # Merge non-overlapping masks by addition
         merged_Mask = mask_array[0] + mask_array[1] + mask_array[2]
         return merged_Mask
@@ -252,7 +283,7 @@ class ImageGUI:
                     max_tumor_diameter_slice = self.calculate_max_tumor_diameter(masks_list)
                     max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-                    merged_mask = self.merge_mask(masks_list)
+                    merged_mask = self.merge_mask(datasetMask)
                     Outer_layer = self.outer_contours(datasetImage[:, :, 1])
                     glioma_overlap = cv2.bitwise_and(Outer_layer.astype(np.uint8), merged_mask)
                     voxel_count = np.count_nonzero(glioma_overlap == 1)
