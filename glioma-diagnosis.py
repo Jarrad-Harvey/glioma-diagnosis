@@ -158,17 +158,33 @@ class ImageGUI:
         image = self.volume[slice_ID]["image"][channel_ID]
         mask = self.volume[slice_ID]["mask"]
         return image, mask
+    
 
-
-    # XXX
-    def extract_radiomic_features(self):
-        image, mask = self.get_current_image()
-        sitk_volume = sitk.GetImageFromArray(image)
-        sitk_mask = sitk.GetImageFromArray(mask)
+    def get_current_volume(self):
+        channel_ID = self.channel_options.index(self.channel_var.get())
+    
+        # Extract 3D image and mask for the specified channel
+        image_3d = [slice["image"][channel_ID] for slice in self.volume]
+        mask_3d = [slice["mask"] for slice in self.volume]
         
-        extractor = featureextractor.RadiomicsFeatureExtractor()
+        # Convert lists to numpy arrays
+        image_3d = np.array(image_3d)
+        mask_3d = np.array(mask_3d)
+        
+        return image_3d, mask_3d
 
+
+    def extract_radiomic_features(self):
+        image_3d, mask_3d = self.get_current_volume()
+        
+        # Convert 3D numpy arrays to SimpleITK images
+        sitk_volume = sitk.GetImageFromArray(image_3d)
+        sitk_mask = sitk.GetImageFromArray(mask_3d)
+        
+        # Execute feature extraction on the volume and mask
+        extractor = featureextractor.RadiomicsFeatureExtractor()
         result = extractor.execute(sitk_volume, sitk_mask)
+        
         for key, val in result.items():
             print("\t%s: %s" % (key, val))
 
