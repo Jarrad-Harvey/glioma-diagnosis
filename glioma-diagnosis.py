@@ -6,10 +6,13 @@ import os
 import csv
 import cv2
 from sklearn.decomposition import PCA
+from skimage import color
+from skimage.filters import threshold_otsu
+import imageio
 import h5py
-from scipy.stats import pearsonr
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics.pairwise import euclidean_distances
+from radiomics import featureextractor
+import SimpleITK as sitk
+
 
 
 class ImageGUI:
@@ -20,8 +23,9 @@ class ImageGUI:
    
     def __init__(self, master):
         self.master = master
+        self.repeatability_scores = {}
         self.master.title("Glioma Diagnosis")
-    
+        self.substrings = ['shape', 'firstorder', 'glcm', 'gldm', 'glrlm', 'glszm']
         ##### Frames
         # Create a frame for the GUI.
         self.frame = tk.Frame(self.master)
@@ -57,12 +61,12 @@ class ImageGUI:
     
         ##### Option widgets
         # Create a drop down menu for switching the channel
-        channel_options = ('T1', 'T1Gd', 'T2', 'T2-FLAI')
+        self.channel_options = ('T1', 'T1Gd', 'T2', 'T2-FLAI')
         self.annotation_label = tk.Label(self.options_row_4, text='Channel:')
         self.annotation_label.pack(side=tk.LEFT, padx=5, pady=5)
         self.channel_var = tk.StringVar()
-        self.channel_var.set(channel_options[0])
-        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *channel_options, command=self.onChanges)
+        self.channel_var.set(self.channel_options[0])
+        self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *self.channel_options, command=self.onChanges)
         self.channel_menu.pack(side=tk.LEFT, padx=5, pady=5)
         # Create drop down menus for toggling annotation visibility
         annotation_options = ('On', 'Off')
@@ -92,12 +96,23 @@ class ImageGUI:
         # Search the directory and track the H5 files according to the filename conventions of the downloaded dataset.
         volume = []
         for i in range(155):
+            # Read file
             file_path = folder_path + '/volume_1_slice_%i.h5' % i
             file = h5py.File(file_path, 'r')
-            dataset = file['image'][:] * 100
-            #print(dataset)                    #XXX: How should we normalise the array?
-            image = Image.fromarray(dataset.astype("uint8"))
-            volume.append(image)
+            
+            # Extract image
+            image = file['image'][:] * 100                      #XXX: How should we normalise the array?
+            channels = [Image.fromarray(image[:, :, i]) for i in range(len(self.channel_options))]
+            
+            # Extract mask
+            masks = file['mask'][:]
+            merged_mask = self.merge_mask(masks)
+
+            volume.append({
+                "image": channels,
+                "mask": merged_mask
+            })
+
         self.volume = volume
         
         # Display image
@@ -130,98 +145,185 @@ class ImageGUI:
 
     # Display a new photo in the GUI
     def update_image(self):
-        slice_ID = self.slice_ID_var.get()
-        image = self.volume[slice_ID]
+        image, _ = self.get_current_image()
         photo = self.prepare_photo(image, convertToPIL=False)
 
         self.original_image_label.configure(image=photo)
         self.original_image_label.image = photo
 
 
-    def select_top_features_by_group(self, features_sets_grouped):
-        top_features = {}
+    def get_current_image(self):
+        slice_ID = self.slice_ID_var.get()
+        channel_ID = self.channel_options.index(self.channel_var.get())
+
+        image = self.volume[slice_ID]["image"][channel_ID]
+        mask = self.volume[slice_ID]["mask"]
+        return image, mask
+    
+
+    def get_current_volume(self, channel_ID, volume):
+        # Extract 3D image and mask for the specified channel
+        image_3d = [slice["image"][channel_ID] for slice in volume]
+        mask_3d = [slice["mask"] for slice in volume]
         
-        for group_name, features_sets in features_sets_grouped.items():
-            n_features = features_sets[0].shape[0]
-            repeatability_scores = np.zeros(n_features)
+        # Convert lists to numpy arrays
+        image_3d = np.array(image_3d)
+        mask_3d = np.array(mask_3d)
+        
+        return image_3d, mask_3d
+
+    def filter_features(self, result):
+        # Extract keys from the result dictionary
+        keys = result.keys()
+        
+        # Filter keys that contain any of the specified substrings
+        filtered_keys = []
+        for key in keys:
+            if any(substring in key for substring in self.substrings):
+                filtered_keys.append(key)
+        
+        # Create a new dictionary containing only the filtered keys and their corresponding values
+        filtered_result = {}
+        for key in filtered_keys:
+            filtered_result[key] = result[key]
+        
+        return filtered_result
+    
+    def calculate_repeatability(self, *results):
+        # Filter features in all results
+        filtered_results = []
+        for result in results:
+            filtered_result = self.filter_features(result)
+            filtered_results.append(filtered_result)
+        # collect all keys
+        keys = filtered_results[0].keys()
+        
+        for key in keys:
+            values = []
+            for result in filtered_results:
+                if key in result:
+                    values.append(result[key])
             
-            # Calculate repeatability scores for each feature across all pairs of feature sets
-            n_sets = len(features_sets)
-            for i in range(n_sets):
-                for j in range(i + 1, n_sets):
-                    for feature_idx in range(n_features):
-                        feature_set_1 = features_sets[i][feature_idx, :]
-                        feature_set_2 = features_sets[j][feature_idx, :]
-                        pearson_corr, cos_similarity, euclidean_dist = self.calculate_repeatability(feature_set_1, feature_set_2)
-                        
-                        # Combine the scores into a single repeatability score for this pair
-                        repeatability_score = (pearson_corr + cos_similarity - euclidean_dist) / 3
-                        repeatability_scores[feature_idx] += repeatability_score
-            
-            # Normalize by the number of comparisons
-            n_comparisons = n_sets * (n_sets - 1) / 2
-            repeatability_scores /= n_comparisons
-            
-            # Sort features based on repeatability scores
-            sorted_features = sorted(enumerate(repeatability_scores), key=lambda x: x[1], reverse=True)
-            
-            # Select top 10 features
-            top_10_features_indices = [idx for idx, _ in sorted_features[:10]]
-            
-            top_features[group_name] = top_10_features_indices
+            if len(values) < len(results): 
+                continue
+            mean_val = np.mean(values)
+            std_dev = np.std(values)
+            cv = std_dev / mean_val if mean_val != 0 else np.inf
+            if key not in self.repeatability_scores:
+                self.repeatability_scores[key] = 0
+            self.repeatability_scores [key] += cv
+        return
+    def select_top_features(self, repeatability_scores, category, top_n):
+        # Filter repeatability scores for the specified category
+        filtered_scores = {}
+        for key, val in repeatability_scores.items():
+            if category in key:
+                filtered_scores[key] = val
+        
+        # Sort the filtered scores by their repeatability values
+        sorted_features = sorted(filtered_scores.items(), key=lambda item: item[1])
+        
+        # Extract top N features from the sorted list
+        top_features = [feature for feature, _ in sorted_features[:top_n]]
         
         return top_features
     
-    # XXX
-    def extract_radiomic_features(self):
-        features_day1_intensity = np.random.rand(20, 10)
-        features_day1_shape = np.random.rand(20, 10)
-        features_day1_texture = np.random.rand(20, 10)
-
-        features_day2_intensity = np.random.rand(20, 10)
-        features_day2_shape = np.random.rand(20, 10)
-        features_day2_texture = np.random.rand(20, 10)
-
-        features_day3_intensity = np.random.rand(20, 10)
-        features_day3_shape = np.random.rand(20, 10)
-        features_day3_texture = np.random.rand(20, 10)
-
-        features_day4_intensity = np.random.rand(20, 10)
-        features_day4_shape = np.random.rand(20, 10)
-        features_day4_texture = np.random.rand(20, 10)
-
-        # Put all feature sets into a dictionary grouped by feature type
-        features_sets_grouped = {
-            'intensity': [
-                features_day1_intensity, features_day2_intensity, features_day3_intensity, features_day4_intensity
-            ],
-            'shape': [
-                features_day1_shape, features_day2_shape, features_day3_shape, features_day4_shape
-            ],
-            'texture': [
-                features_day1_texture, features_day2_texture, features_day3_texture, features_day4_texture
-            ]
+    def group_and_select_features(self):
+        #repeatability_scores = self.calculate_repeatability(*results)
+        #print(self.repeatability_scores )
+        top_intensity_features = self.select_top_features(self.repeatability_scores , 'firstorder', 10)
+        top_shape_features = self.select_top_features(self.repeatability_scores , 'shape', 10)
+        top_texture_features = self.select_top_features(self.repeatability_scores , 'glcm', 3) + \
+                               self.select_top_features(self.repeatability_scores , 'gldm', 3) + \
+                               self.select_top_features(self.repeatability_scores , 'glrlm', 2) + \
+                               self.select_top_features(self.repeatability_scores , 'glszm', 2)
+        
+        return {
+            'intensity_features': top_intensity_features,
+            'shape_features': top_shape_features,
+            'texture_features': top_texture_features
         }
-
-        # Select top 10 features for each group
-        top_features = self.select_top_features_by_group(features_sets_grouped)
-
-        print("Top 10 intensity features:", top_features['intensity'])
-        print("Top 10 shape features:", top_features['shape'])
-        print("Top 10 texture features:", top_features['texture'])
     
-    def calculate_repeatability(self, feature_set_1, feature_set_2):
-        # Pearson correlation coefficient
-        pearson_corr, _ = pearsonr(feature_set_1, feature_set_2)
+    def extract_result(self, result, top_features):
+        # Merge top_features values into a single list
+        keys = [item for sublist in top_features.values() for item in sublist]
         
-        # Cosine similarity
-        cos_similarity = cosine_similarity([feature_set_1], [feature_set_2])[0][0]
+        # Filter result to only contain keys in keys
+        top_feature = {key: result[key] for key in result.keys() if key in keys}
         
-        # Euclidean distance (we use the negative distance to be consistent with correlation and similarity measures)
-        euclidean_dist = -euclidean_distances([feature_set_1], [feature_set_2])[0][0]
-        
-        return pearson_corr, cos_similarity, euclidean_dist
+        return top_feature
+    def extract_radiomic_features(self):
+        Current_channel_ID = self.channel_options.index(self.channel_var.get())
+        Feature_lists = []
+        volume_lists = []
+        hadHeader = False
+        folder_path = filedialog.askdirectory(title="Select Slice Directory", initialdir='.')
+        self.folder_path = folder_path
+        # Ensure the volume folders are sorted
+        volume_folders = sorted(os.listdir(self.folder_path))
+        # Output result_to_show to a CSV file
+        output_file = "radiomic_features.csv"
 
+        for volume_name in volume_folders:
+            volume_folder = os.path.join(self.folder_path, volume_name)
+            # Get all slice files in the volume folder and sort them
+            slice_files = sorted(os.listdir(volume_folder))
+            volume = []
+            volume_lists.append(slice_files[0].split('_')[1])
+            for slice_file in slice_files:
+                file_path = os.path.join(volume_folder, slice_file)
+                file = h5py.File(file_path, 'r')
+                # Extract image
+                image = file['image'][:]
+                channels = [Image.fromarray(image[:, :, i]) for i in range(len(self.channel_options))]
+                
+                # Extract mask
+                masks = file['mask'][:]
+                merged_mask = self.merge_mask(masks)
+
+                volume.append({
+                    "image": channels,
+                    "mask": merged_mask
+                })  
+            result_list = []
+            for channel_ID in range (0,4):
+                image_3d, mask_3d = self.get_current_volume(channel_ID, volume)
+                # Convert 3D numpy arrays to SimpleITK images
+                sitk_volume = sitk.GetImageFromArray(image_3d)
+                sitk_mask = sitk.GetImageFromArray(mask_3d)
+                
+                # Execute feature extraction on the volume and mask
+                extractor = featureextractor.RadiomicsFeatureExtractor()
+                result = extractor.execute(sitk_volume, sitk_mask)
+                #result = self.filter_result(result)
+                result_list.append(result)
+                if (Current_channel_ID == channel_ID):
+                    Feature_lists.append(result)
+                    #result_to_show = result
+
+            result1 = result_list[0]
+            result2 = result_list[1]
+            result3 = result_list[2]
+            result4 = result_list[3]
+            self.calculate_repeatability(result1, result2, result3, result4)
+        top_features = self.group_and_select_features()
+        #print(top_features)
+        with open(output_file, 'w', newline='') as csvfile:
+            i = 0
+            for result_to_show in Feature_lists:
+                result_to_show = self.extract_result(result_to_show, top_features)
+                if(hadHeader is not True):
+                    fieldnames = ['Volume'] + list(result_to_show.keys())  # Add 'Value' as the first column
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    hadHeader = True
+                volume_number = volume_lists[i]
+                i+=1
+                Volume_Number = 'Volume_' + volume_number
+                writer.writerow({'Volume': Volume_Number, **result_to_show})  # Write the data row
+        print("Features extracted and saved to:", output_file)
+        return
+    
     def calculate_max_tumor_diameter(self, merged_mask):
         max_tumor_diameter = 0
         # Find coordinates of tumor pixels
@@ -290,7 +392,10 @@ class ImageGUI:
         # Return the combined image of the contours
         return collected_contours
 
-    def merge_mask(self, mask_array):
+    def merge_mask(self, masks):
+        # Reshape masks array
+        mask_array = [masks[:, :, i] for i in range(masks.shape[2])]
+
         # Merge non-overlapping masks by addition
         merged_Mask = mask_array[0] + mask_array[1] + mask_array[2]
         return merged_Mask
@@ -304,41 +409,47 @@ class ImageGUI:
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(['Volume', 'Max Tumor Area', 'Max Tumor Diameter', 'Outer Layer Involvement'])
 
-            for volume_idx, volume_path in enumerate(os.listdir(self.folder_path)):
-                # Process each volume
-                volume_folder = os.path.join(self.folder_path, volume_path)
+            # Ensure the volume folders are sorted
+            volume_folders = sorted(os.listdir(self.folder_path))
+
+            for volume_name in volume_folders:
+                volume_folder = os.path.join(self.folder_path, volume_name)
 
                 max_tumor_area = 0
                 max_tumor_diameter = 0
                 total_voxels = 0
                 total_cortex_voxels = 0
 
-                for slice_idx in range(155):
-                    # Process each slice in the volume
-                    file_path = os.path.join(volume_folder, 'volume_%d_slice_%d.h5' % (volume_idx + 1, slice_idx))
-                    file = h5py.File(file_path, 'r')
-                    datasetMask = file['mask'][:]
-                    datasetImage = file['image'][:]
-                    masks_list = [datasetMask[:, :, i] for i in range(datasetMask.shape[2])]
-                    merged_mask = self.merge_mask(masks_list)
-                    tumor_area = np.sum(merged_mask)
-                    max_tumor_area = max(max_tumor_area, tumor_area)
+                # Get all slice files in the volume folder and sort them
+                slice_files = sorted(os.listdir(volume_folder))
 
-                    max_tumor_diameter_slice = self.calculate_max_tumor_diameter(merged_mask)
-                    max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
+                for slice_file in slice_files:
+                    if slice_file.endswith('.h5'):
+                        file_path = os.path.join(volume_folder, slice_file)
+                        file = h5py.File(file_path, 'r')
+                        datasetMask = file['mask'][:]
+                        datasetImage = file['image'][:]
+                        merged_mask = self.merge_mask(datasetMask)
+                        tumor_area = np.sum(merged_mask)
+                        max_tumor_area = max(max_tumor_area, tumor_area)
 
-                    
-                    Outer_layer = self.outer_contours(datasetImage[:, :, 1])
-                    glioma_overlap = cv2.bitwise_and(Outer_layer.astype(np.uint8), merged_mask)
-                    voxel_count = np.count_nonzero(glioma_overlap == 1)
-                    total_voxels += voxel_count
+                        max_tumor_diameter_slice = self.calculate_max_tumor_diameter(merged_mask)
+                        max_tumor_diameter = max(max_tumor_diameter, max_tumor_diameter_slice)
 
-                    cortex_voxels = np.count_nonzero(Outer_layer)
-                    total_cortex_voxels += cortex_voxels
+                        Outer_layer = self.outer_contours(datasetImage[:, :, 1])
+                        glioma_overlap = cv2.bitwise_and(Outer_layer.astype(np.uint8), merged_mask)
+                        voxel_count = np.count_nonzero(glioma_overlap == 1)
+                        total_voxels += voxel_count
+
+                        cortex_voxels = np.count_nonzero(Outer_layer)
+                        total_cortex_voxels += cortex_voxels
 
                 outer_layer_involvement_avg = (total_voxels / total_cortex_voxels) * 100
-                Voulume_Number = 'Volume_' + str(volume_idx + 1)
-                csv_writer.writerow([Voulume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
+
+                # Extract volume number from the volume name (assuming volume name has the format 'volume_X')
+                volume_number = slice_files[0].split('_')[1]
+                Volume_Number = 'Volume_' + volume_number
+                csv_writer.writerow([Volume_Number, max_tumor_area, max_tumor_diameter, outer_layer_involvement_avg])
 
         print("Conventional features extracted and saved to:", csv_file_path)
 if __name__ == "__main__":
