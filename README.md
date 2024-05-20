@@ -5,4 +5,5 @@
 2. Place the extracted folder at `../BraTS2020_training_data`.
 3. Install *requirements.txt*.
     - In Conda: `conda create --name <env> --file requirements.txt`
+    - Note: This project uses Python 3.9
 4. Execute with `python glioma-diagnosis.py`.
