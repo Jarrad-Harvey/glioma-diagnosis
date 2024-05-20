@@ -1,5 +1,6 @@
 import tkinter as tk
 from PIL import ImageTk, Image
+import numpy as np
 from read_volumes import load_volume
 from extract_features import extract_radiomic_features, extract_conventional_features
 from repeatability_test import perform_repeatability_test
@@ -48,7 +49,7 @@ class ImageGUI:
         self.conv_features_button = tk.Button(self.options_row_1, text="Extract conventional features", command=extract_conventional_features)
         self.conv_features_button.pack(side=tk.RIGHT, padx=5, pady=5)
         # Create an "Extract radiomic features" button
-        self.radio_features_button = tk.Button(self.options_row_2, text="Extract radiomic features", command=lambda: extract_radiomic_features(channel_options.index(self.channel_var.get())))
+        self.radio_features_button = tk.Button(self.options_row_2, text="Extract radiomic features", command=lambda: extract_radiomic_features(channel_options[self.channel_var.get()]))
         self.radio_features_button.pack(side=tk.RIGHT, padx=5, pady=5)
     
         ##### Option widgets
@@ -56,7 +57,7 @@ class ImageGUI:
         self.annotation_label = tk.Label(self.options_row_4, text='Channel:')
         self.annotation_label.pack(side=tk.LEFT, padx=5, pady=5)
         self.channel_var = tk.StringVar()
-        self.channel_var.set(channel_options[0])
+        self.channel_var.set(list(channel_options)[0])
         self.channel_menu = tk.OptionMenu(self.options_row_4, self.channel_var, *channel_options, command=self.onChanges)
         self.channel_menu.pack(side=tk.LEFT, padx=5, pady=5)
         # Create drop down menus for toggling annotation visibility
@@ -87,6 +88,7 @@ class ImageGUI:
 
         # Convert the image back to PIL format
         pil_image = Image.fromarray(image) if convertToPIL else image
+        pil_image.convert('RGB')
         
         # Resize the image to fit in the label
         width, height = pil_image.size
@@ -107,11 +109,21 @@ class ImageGUI:
     # Display a new photo in the GUI
     def update_image(self):
         slice_ID = self.slice_ID_var.get()
-        channel_ID = channel_options.index(self.channel_var.get())
+        channel_ID = channel_options[self.channel_var.get()]
+        mask_flag = self.annotation_var.get() == "On"
 
+        # Get the image and mask
         image = self.volume["slices"][slice_ID]["image"][channel_ID]
+        mask = self.volume["slices"][slice_ID]["mask"]["segmented"] * 100
 
-        photo = self.prepare_photo(image, convertToPIL=False)
+        if mask_flag:
+            # Layer mask on the image
+            rgb_image = np.stack([image] * 3, axis=-1)
+            color_mask = np.stack([mask[:, :,0], mask[:, :,1], mask[:, :,2]], axis=-1)
+            blended = np.clip(rgb_image * 1.0 + color_mask * 0.5, 0, 255).astype(np.uint8)
+            photo = self.prepare_photo(blended, convertToPIL=True)
+        else:
+            photo = self.prepare_photo(image, convertToPIL=False)
 
         self.image.configure(image=photo)
         self.image.image = photo

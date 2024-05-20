@@ -37,7 +37,10 @@ def load_volume(volume_folder=''):
         # Append slice
         slices[slice_id] = {
             "image": channels,
-            "mask": merged_mask,
+            "mask": {
+                "merged": merged_mask,
+                "segmented": masks,
+            },
         }
 
     volume = {
@@ -51,7 +54,7 @@ def load_volume(volume_folder=''):
 def get_current_volume(channel_ID, volume):
     # Extract 3D image and mask for the specified channel
     image_3d = [slice["image"][channel_ID] for slice in volume["slices"]]
-    mask_3d = [slice["mask"] for slice in volume["slices"]]
+    mask_3d = [slice["mask"]["merged"] for slice in volume["slices"]]
     
     # Convert lists to numpy arrays
     image_3d = np.array(image_3d)

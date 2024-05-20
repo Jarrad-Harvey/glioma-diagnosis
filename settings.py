@@ -1,5 +1,10 @@
 # Dataset properties
-channel_options = ('T1', 'T1Gd', 'T2', 'T2-FLAI')
+channel_options = {
+    'T2-FLAIR': 0,
+    'T1': 1,
+    'T1Gd': 2,
+    'T2': 3
+}
 slices_per_volume = 155
 
 # Feature extraction categories
