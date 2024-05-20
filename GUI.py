@@ -84,10 +84,10 @@ class ImageGUI:
 
 
     # Resize and convert the image so it can be displayed.
-    def prepare_photo(self, image, convertToPIL=True):
+    def prepare_photo(self, image):
 
         # Convert the image back to PIL format
-        pil_image = Image.fromarray(image) if convertToPIL else image
+        pil_image = Image.fromarray(image)
         pil_image.convert('RGB')
         
         # Resize the image to fit in the label
@@ -116,18 +116,18 @@ class ImageGUI:
         image = self.volume["slices"][slice_ID]["image"][channel_ID]
         mask = self.volume["slices"][slice_ID]["mask"]["segmented"] * 100
 
+        # Normalise image
+        image = np.array(image)
+        image = ((image - image.min()) / (image.max() - image.min())) * 255
+
         if mask_flag:
-            # Convert image to np array
-            image = np.array(image)
-            image = ((image - image.min()) / (image.max() - image.min())) * 255
-            
             # Layer mask on the image
             rgb_image = np.stack([image] * 3, axis=-1)
             color_mask = np.stack([mask[:, :,0], mask[:, :,1], mask[:, :,2]], axis=-1)
             blended = np.clip(rgb_image * 1.0 + color_mask * 0.5, 0, 255).astype(np.uint8)
-            photo = self.prepare_photo(blended, convertToPIL=True)
+            photo = self.prepare_photo(blended)
         else:
-            photo = self.prepare_photo(image, convertToPIL=False)
+            photo = self.prepare_photo(image)
 
         self.image.configure(image=photo)
         self.image.image = photo
