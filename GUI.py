@@ -2,7 +2,7 @@ import tkinter as tk
 from PIL import ImageTk, Image
 from read_volumes import load_volume
 from extract_features import extract_radiomic_features, extract_conventional_features
-from calculate_best_features import perform_repeatability_test
+from repeatability_test import perform_repeatability_test
 from settings import * 
 
 class ImageGUI:

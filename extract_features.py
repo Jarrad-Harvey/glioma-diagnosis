@@ -8,7 +8,7 @@ import h5py
 from radiomics import featureextractor
 import SimpleITK as sitk
 from read_volumes import load_volume, merge_mask, get_current_volume
-from calculate_best_features import calculate_repeatability, extract_result
+from repeatability_test import calculate_repeatability, extract_result
 from settings import * 
 import pprint
 
