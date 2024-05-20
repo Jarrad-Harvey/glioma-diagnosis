@@ -117,6 +117,10 @@ class ImageGUI:
         mask = self.volume["slices"][slice_ID]["mask"]["segmented"] * 100
 
         if mask_flag:
+            # Convert image to np array
+            image = np.array(image)
+            image = ((image - image.min()) / (image.max() - image.min())) * 255
+            
             # Layer mask on the image
             rgb_image = np.stack([image] * 3, axis=-1)
             color_mask = np.stack([mask[:, :,0], mask[:, :,1], mask[:, :,2]], axis=-1)
