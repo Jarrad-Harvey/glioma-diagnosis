@@ -1,4 +1,10 @@
+import os
+import pprint
+from tkinter import filedialog
 import numpy as np
+import SimpleITK as sitk
+from radiomics import featureextractor
+from read_volumes import get_current_volume, load_volume
 from settings import * 
 
 scores = {}
@@ -87,3 +93,35 @@ def extract_result(result, top_features):
     top_feature = {key: result[key] for key in result.keys() if key in keys}
     
     return top_feature
+
+def perform_repeatability_test():
+    folder_path = filedialog.askdirectory(title="Select Volume Set Directory", initialdir='.')
+    # Ensure the volume folders are sorted
+    volume_folders = sorted(os.listdir(folder_path))
+
+    for volume_folder in volume_folders:
+        # Load volume
+        path = os.path.join(folder_path, volume_folder)
+        volume = load_volume(path)
+
+        results = []
+        for channel_ID in range (0,4):
+            image_3d, mask_3d = get_current_volume(channel_ID, volume)
+            # Convert 3D numpy arrays to SimpleITK images
+            sitk_volume = sitk.GetImageFromArray(image_3d)
+            sitk_mask = sitk.GetImageFromArray(mask_3d)
+            
+            # Execute feature extraction on the volume and mask
+            print("Extracting radiomic features for volume " + volume['name'] + " channel " + str(channel_ID) + "...")
+            extractor = featureextractor.RadiomicsFeatureExtractor()
+            result = extractor.execute(sitk_volume, sitk_mask)
+
+            results.append(result)
+
+        calculate_repeatability(*results)
+
+    # Determine the best features for high repeatability across all volume
+    top_features = select_top_features()
+    
+    print("\nBest features are:")
+    pprint.pp(top_features)

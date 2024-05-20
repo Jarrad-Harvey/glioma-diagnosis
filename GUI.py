@@ -2,6 +2,7 @@ import tkinter as tk
 from PIL import ImageTk, Image
 from read_volumes import load_volume
 from extract_features import extract_radiomic_features, extract_conventional_features
+from calculate_best_features import perform_repeatability_test
 from settings import * 
 
 class ImageGUI:
@@ -32,17 +33,21 @@ class ImageGUI:
         self.options_row_4.grid(row=4, column=0, sticky="nsew")
         
         ##### Image grid
-        # Create a "Load Image" button
-        self.load_button = tk.Button(self.options_row_1, text="Load Slice Directory", command=self.load_slice_directory)
-        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
         # Create a label to display the original image
         self.image = tk.Label(self.imageGrid)
         self.image.pack(side=tk.LEFT, padx=5, pady=5)
     
         ##### Function buttons
-        # Create a "Detect Edges" button
+        # Create a "Load Slice Directory" button
+        self.load_button = tk.Button(self.options_row_1, text="Load Slice Directory", command=self.load_slice_directory)
+        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Create a "Perform repeatability test" button
+        self.load_button = tk.Button(self.options_row_2, text="Perform repeatability test", command=perform_repeatability_test)
+        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Create an "Extract conventional features" button
         self.conv_features_button = tk.Button(self.options_row_1, text="Extract conventional features", command=extract_conventional_features)
         self.conv_features_button.pack(side=tk.RIGHT, padx=5, pady=5)
+        # Create an "Extract radiomic features" button
         self.radio_features_button = tk.Button(self.options_row_2, text="Extract radiomic features", command=lambda: extract_radiomic_features(channel_options.index(self.channel_var.get())))
         self.radio_features_button.pack(side=tk.RIGHT, padx=5, pady=5)
     

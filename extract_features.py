@@ -8,7 +8,7 @@ import h5py
 from radiomics import featureextractor
 import SimpleITK as sitk
 from read_volumes import load_volume, merge_mask, get_current_volume
-from calculate_best_features import calculate_repeatability, select_top_features, extract_result
+from calculate_best_features import calculate_repeatability, extract_result
 from settings import * 
 import pprint
 
@@ -20,36 +20,26 @@ def extract_radiomic_features(current_channel_ID=0):
         # Ensure the volume folders are sorted
         volume_folders = sorted(os.listdir(folder_path))
 
-
         for volume_folder in volume_folders:
             # Load volume
             path = os.path.join(folder_path, volume_folder)
             volume = load_volume(path)
             volume_lists.append(volume["name"])
 
-            results = []
-            for channel_ID in range (0,4):
-                image_3d, mask_3d = get_current_volume(channel_ID, volume)
-                # Convert 3D numpy arrays to SimpleITK images
-                sitk_volume = sitk.GetImageFromArray(image_3d)
-                sitk_mask = sitk.GetImageFromArray(mask_3d)
-                
-                # Execute feature extraction on the volume and mask
-                print("Extracting radiomic features for volume " + volume['name'] + " channel " + str(channel_ID) + "...")
-                extractor = featureextractor.RadiomicsFeatureExtractor()
-                result = extractor.execute(sitk_volume, sitk_mask)
+            image_3d, mask_3d = get_current_volume(current_channel_ID, volume)
+            # Convert 3D numpy arrays to SimpleITK images
+            sitk_volume = sitk.GetImageFromArray(image_3d)
+            sitk_mask = sitk.GetImageFromArray(mask_3d)
+            
+            # Execute feature extraction on the volume and mask
+            print("Extracting radiomic features for volume " + volume['name'] + "...")
+            extractor = featureextractor.RadiomicsFeatureExtractor()
+            result = extractor.execute(sitk_volume, sitk_mask)
 
-                results.append(result)
-                if (current_channel_ID == channel_ID):
-                    feature_lists.append(result)
+            feature_lists.append(result)
 
-            calculate_repeatability(*results)
-
-        # Determine the best features for high repeatability across all volume
-        # top_features = select_top_features()
+        # Retrieve the top features from previous tests.
         top_features = hardcoded_top_features
-        print("\nBest features are:")
-        pprint.pp(top_features)
 
         with open(radiomic_output_file, 'w', newline='') as csvfile:
             i = 0
