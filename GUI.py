@@ -118,7 +118,7 @@ class ImageGUI:
 
         # Normalise image
         image = np.array(image)
-        image = ((image - image.min()) / (image.max() - image.min())) * 255
+        image = ((image - image.min()) / (image.max() - image.min())) * 255 if image.max() > 0 else image
 
         if mask_flag:
             # Layer mask on the image
