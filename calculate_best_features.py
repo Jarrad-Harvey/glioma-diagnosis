@@ -1,17 +1,4 @@
-import tkinter as tk
-from tkinter import filedialog
-from PIL import ImageTk, Image
 import numpy as np
-import os
-import csv
-import cv2
-from sklearn.decomposition import PCA
-from skimage import color
-from skimage.filters import threshold_otsu
-import SimpleITK as sitk
-from radiomics import featureextractor
-import imageio
-from read_volumes import load_volume, merge_mask, get_current_volume
 from settings import * 
 
 scores = {}

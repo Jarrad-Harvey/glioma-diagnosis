@@ -1,14 +1,9 @@
-import tkinter as tk
 from tkinter import filedialog
-from PIL import ImageTk, Image
 import numpy as np
 import os
 import csv
 import cv2
 from sklearn.decomposition import PCA
-from skimage import color
-from skimage.filters import threshold_otsu
-import imageio
 import h5py
 from radiomics import featureextractor
 import SimpleITK as sitk
@@ -97,7 +92,7 @@ def extract_conventional_features():
 
             name = slice_files[0].split('_')[1]
             print("Extracting conventional features for volume " + name + "...")
-            
+
             for slice_file in slice_files:
                 if slice_file.endswith('.h5'):
                     file_path = os.path.join(volume_folder, slice_file)
