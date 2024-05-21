@@ -13,49 +13,50 @@ from settings import *
 import pprint
 
 def extract_radiomic_features(current_channel_ID=0):
-        feature_lists = []
-        volume_lists = []
-        hadHeader = False
-        folder_path = filedialog.askdirectory(title="Select Volume Set Directory", initialdir='.')
-        # Ensure the volume folders are sorted
-        volume_folders = sorted(os.listdir(folder_path))
+    feature_lists = []
+    volume_lists = []
+    hadHeader = False
+    folder_path = filedialog.askdirectory(title="Select Volume Set Directory", initialdir='.')
+    # Ensure the volume folders are sorted
+    volume_folders = sorted(os.listdir(folder_path))
 
-        for volume_folder in volume_folders:
-            # Load volume
-            path = os.path.join(folder_path, volume_folder)
-            volume = load_volume(path)
-            volume_lists.append(volume["name"])
+    for volume_folder in volume_folders:
+        # Load volume
+        path = os.path.join(folder_path, volume_folder)
+        if not os.path.isdir(path): continue
+        volume = load_volume(path)
+        volume_lists.append(volume["name"])
 
-            image_3d, mask_3d = get_current_volume(current_channel_ID, volume)
-            # Convert 3D numpy arrays to SimpleITK images
-            sitk_volume = sitk.GetImageFromArray(image_3d)
-            sitk_mask = sitk.GetImageFromArray(mask_3d)
-            
-            # Execute feature extraction on the volume and mask
-            print("Extracting radiomic features for volume " + volume['name'] + "...")
-            extractor = featureextractor.RadiomicsFeatureExtractor()
-            result = extractor.execute(sitk_volume, sitk_mask)
+        image_3d, mask_3d = get_current_volume(current_channel_ID, volume)
+        # Convert 3D numpy arrays to SimpleITK images
+        sitk_volume = sitk.GetImageFromArray(image_3d)
+        sitk_mask = sitk.GetImageFromArray(mask_3d)
+        
+        # Execute feature extraction on the volume and mask
+        print("Extracting radiomic features for volume " + volume['name'] + "...")
+        extractor = featureextractor.RadiomicsFeatureExtractor()
+        result = extractor.execute(sitk_volume, sitk_mask)
 
-            feature_lists.append(result)
+        feature_lists.append(result)
 
-        # Retrieve the top features from previous tests.
-        top_features = hardcoded_top_features
+    # Retrieve the top features from previous tests.
+    top_features = hardcoded_top_features
 
-        with open(radiomic_output_file, 'w', newline='') as csvfile:
-            i = 0
-            for result_to_show in feature_lists:
-                result_to_show = extract_result(result_to_show, top_features)
-                if(hadHeader is not True):
-                    fieldnames = ['Volume'] + list(result_to_show.keys())  # Add 'Value' as the first column
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    writer.writeheader()
-                    hadHeader = True
-                volume_number = volume_lists[i]
-                i+=1
-                Volume_Number = 'Volume_' + volume_number
-                writer.writerow({'Volume': Volume_Number, **result_to_show})  # Write the data row
-        print("Features extracted and saved to:", radiomic_output_file)
-        return
+    with open(radiomic_output_file, 'w', newline='') as csvfile:
+        i = 0
+        for result_to_show in feature_lists:
+            result_to_show = extract_result(result_to_show, top_features)
+            if(hadHeader is not True):
+                fieldnames = ['Volume'] + list(result_to_show.keys())  # Add 'Value' as the first column
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                hadHeader = True
+            volume_number = volume_lists[i]
+            i+=1
+            Volume_Number = 'Volume_' + volume_number
+            writer.writerow({'Volume': Volume_Number, **result_to_show})  # Write the data row
+    print("Features extracted and saved to:", radiomic_output_file)
+    return
 
 def extract_conventional_features():
     # Ask user for folder path
@@ -71,6 +72,7 @@ def extract_conventional_features():
 
         for volume_name in volume_folders:            
             volume_folder = os.path.join(folder_path, volume_name)
+            if not os.path.isdir(volume_folder): continue
 
             max_tumor_area = 0
             max_tumor_diameter = 0

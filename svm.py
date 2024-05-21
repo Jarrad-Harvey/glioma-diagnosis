@@ -43,17 +43,14 @@ def generate_dataset():
     # print(combined_features_df)
     # combined_features_df.to_csv('combined.csv')
 
-    print('here after combined')
     df_merged = pd.merge(df_final, df_radiomic_final, on='Volume', suffixes=('', '_radiomic'))
 
     # df_final_features = pd.concat([df_radiomic_final, df_final], axis=1)
     df_merged.to_csv('volume_feature.csv', index=False)
 
     df_final_csv = df_merged.drop('Volume', axis=1)
-    print('here after final')
 
     df_final_csv.to_csv('final_feature.csv', index=False)
-    print('here after final')
 
     # Step 5: Save to CSV
     df_final.to_csv('output.csv', index=False)
