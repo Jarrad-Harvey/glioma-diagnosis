@@ -13,7 +13,7 @@ class ImageGUI:
     def onChanges(self, value):
         self.update_image()
    
-    def __init__(self, master):
+    def __init__(self, master, dev_mode):
         self.master = master
         self.master.title("Glioma Diagnosis")
         ##### Frames
@@ -34,6 +34,20 @@ class ImageGUI:
         self.options_row_4 = tk.Frame(self.frame, relief="groove")
         self.options_row_4.grid(row=4, column=0, sticky="nsew")
         
+        # Add dev mode options
+        if dev_mode:
+            self.options_row_5 = tk.Frame(self.frame, relief="groove")
+            self.options_row_5.grid(row=5, column=0, sticky="nsew")
+            # Create a "Perform repeatability test" button
+            self.load_button = tk.Button(self.options_row_5, text="Perform repeatability test", command=perform_repeatability_test)
+            self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+            # Create a "Train SVM" button XXX
+            self.load_button = tk.Button(self.options_row_5, text="Generate dataset", command=generate_dataset)
+            self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+            # Create a "Train SVM" button XXX
+            self.load_button = tk.Button(self.options_row_5, text="Train SVM", command=train_SVM)
+            self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+        
         ##### Image grid
         # Create a label to display the original image
         self.image = tk.Label(self.imageGrid)
@@ -42,15 +56,6 @@ class ImageGUI:
         ##### Function buttons
         # Create a "Load Slice Directory" button
         self.load_button = tk.Button(self.options_row_1, text="Load Slice Directory", command=self.load_slice_directory)
-        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
-        # Create a "Perform repeatability test" button
-        self.load_button = tk.Button(self.options_row_2, text="Perform repeatability test", command=perform_repeatability_test)
-        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
-        # Create a "Train SVM" button XXX
-        self.load_button = tk.Button(self.options_row_2, text="Generate dataset", command=generate_dataset)
-        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
-        # Create a "Train SVM" button XXX
-        self.load_button = tk.Button(self.options_row_2, text="Train SVM", command=train_SVM)
         self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
         # Create an "Extract conventional features" button
         self.conv_features_button = tk.Button(self.options_row_1, text="Extract conventional features", command=extract_conventional_features)
