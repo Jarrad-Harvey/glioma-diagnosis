@@ -59,8 +59,8 @@ def train_SVM():
     features_df = pd.read_csv('final_feature.csv')
     class_names = ['HGG', 'LGG']
     filtered_samples, hidden_test_samples, class_mapping = filter_samples(features_df, 'Grade', class_names)
-    print(filtered_samples.value_counts())
-    print(filtered_samples,flush=True)
+    # print(filtered_samples.value_counts())
+    # print(filtered_samples,flush=True)
 
     # label_encoder = LabelEncoder()
     # features_df['Grade'] = label_encoder.fit_transform(features_df['Grade'])
@@ -84,7 +84,8 @@ def train_SVM():
     # print("numerical encoded labels:", original_labels)
 
     X = filtered_samples.drop('Grade', axis=1)  # Features
-    print(X,flush=True)
+    # print("X")
+    # print(X,flush=True)
 
     y = filtered_samples['Grade']
     # smote = SMOTE(random_state=42)
@@ -126,13 +127,20 @@ def train_SVM():
     # cv_strategy_hidden = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     # cv_scores = cross_val_score(svm_model, X_resampled, y_resampled, cv=cv_strategy, scoring='accuracy')
 
-    clf = GridSearchCV(SVC(gamma='auto'),{
-        'C':[1,10,20],
-        'kernel':['rbf','linear']
-    },cv = 5,return_train_score = False)
+    clf = GridSearchCV(SVC(class_weight='balanced'),{
+        'C':[0.01, 0.05, 0.1, 0.2, 0.5, 1, 2],
+        'kernel':['rbf', 'sigmoid'],
+        'gamma':['scale', 'auto']
+    },cv = 5,return_train_score = False, verbose=3)
 
-    print(y_train.value_counts())
+    # print("X_train")
+    # print(X_train)
+    # print("y_train")
+    # print(y_train)
+
     clf.fit(X_train,y_train)
+
+    print("results")
     print(clf.cv_results_)
     print(clf.best_score_)
     print(clf.best_params_)
@@ -192,9 +200,9 @@ def filter_samples(df, label_column, class_names, n_hidden_test=10, random_state
         hidden_test_class = filtered_samples_class.sample(n=n_hidden_test, random_state=random_state)
         hidden_test_samples.append(hidden_test_class)
         filtered_samples.append(filtered_samples_class.drop(hidden_test_class.index))
-        print(class_name)
-        print(class_mapping)
-        print(filtered_samples_class,flush=True)
+        # print(class_name)
+        # print(class_mapping)
+        # print(filtered_samples_class,flush=True)
     filtered_samples_combined = pd.concat(filtered_samples, axis=0)
     hidden_test_samples_combined = pd.concat(hidden_test_samples, axis=0)
     return filtered_samples_combined, hidden_test_samples_combined, class_mapping
