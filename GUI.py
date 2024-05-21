@@ -4,6 +4,7 @@ import numpy as np
 from read_volumes import load_volume
 from extract_features import extract_radiomic_features, extract_conventional_features
 from repeatability_test import perform_repeatability_test
+from svm import generate_dataset, train_SVM
 from settings import * 
 
 class ImageGUI:
@@ -44,6 +45,12 @@ class ImageGUI:
         self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
         # Create a "Perform repeatability test" button
         self.load_button = tk.Button(self.options_row_2, text="Perform repeatability test", command=perform_repeatability_test)
+        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Create a "Train SVM" button XXX
+        self.load_button = tk.Button(self.options_row_2, text="Generate dataset", command=generate_dataset)
+        self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Create a "Train SVM" button XXX
+        self.load_button = tk.Button(self.options_row_2, text="Train SVM", command=train_SVM)
         self.load_button.pack(side=tk.LEFT, padx=5, pady=5)
         # Create an "Extract conventional features" button
         self.conv_features_button = tk.Button(self.options_row_1, text="Extract conventional features", command=extract_conventional_features)
