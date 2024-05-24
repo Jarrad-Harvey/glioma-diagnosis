@@ -4,16 +4,6 @@
 This project focuses on analyzing brain MRI images from the BRATS2020 dataset. Radiomic features were extracted from these images, specifically targeting regions with tumor masks. These features were utilized to train a Support Vector Machine (SVM) model for classification tasks.
 
 
-### How to run
-1. Download the BraTS2020 data set from https://www.kaggle.com/datasets/awsaf49/brats2020-training-data/
-2. Place the extracted folder at `./data`.
-    - Use `sort_slices.py` to sort the dataset subfolders by volume.
-3. Install *requirements.txt*.
-    - In Conda: `conda create --name <env> --file requirements.txt`
-    - Note: This project uses Python 3.9
-4. Execute with `python glioma-diagnosis.py`.
-
-
 ## Data Partition
 
 Here we got 369 data for each patients mri features with its Glioma grade Label whether its HGG or LGG.
