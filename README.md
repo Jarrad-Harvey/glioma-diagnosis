@@ -9,3 +9,4 @@ Note: This is the readme which explains how to run the program. For the SVM disc
     - `pip install -r requirements.txt`
     - Note: This project uses Python 3.9. Therefore, using an environment is recommended.
 4. Run the GUI with `python GUI.py`.
+    - Display SVM and feature selection functionality with commandline argument: `-d --dev`
