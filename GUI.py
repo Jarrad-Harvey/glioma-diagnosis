@@ -85,9 +85,6 @@ class ImageGUI:
         self.slice_ID_var.set(60)
         self.slice_ID_slider = tk.Scale(self.options_row_3, from_=0, to=154, resolution=1, orient=tk.HORIZONTAL, label="Slice ID", variable=self.slice_ID_var, command=self.onChanges)
         self.slice_ID_slider.pack(side=tk.RIGHT, padx=5, pady=5, fill='x', expand='true')
-
-        # Initialise image
-        self.load_slice_directory('example volume')
     
 
     def load_slice_directory(self, folderPath=''):
