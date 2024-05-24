@@ -3,6 +3,12 @@
 
 This project focuses on analyzing brain MRI images from the BRATS2020 dataset. Radiomic features were extracted from these images, specifically targeting regions with tumor masks. These features were utilized to train a Support Vector Machine (SVM) model for classification tasks.
 
+## Group members
+| Name                    | Student number |
+|-------------------------|----------------|
+| Jarrad Harvey           | 21971144       |
+| Justin Duong            | 23179573       |
+| Vahkkshshan Sithsabasan | 24065768       |
 
 ## Data Partition
 
