@@ -4,6 +4,10 @@ import numpy as np
 import os
 import h5py
 from settings import *
+import re
+
+# Define the pattern
+pattern = re.compile(r'volume_\d+_slice_\d+\.h5')
 
 # Load a volume, either by user selection or a specified volume folder.
 def load_volume(volume_folder=''):
@@ -21,6 +25,9 @@ def load_volume(volume_folder=''):
     # Search the directory and track the H5 files according to the filename conventions of the downloaded dataset.
     slices = np.empty(slices_per_volume, dtype=object)
     for slice_file in slice_files:
+         # If the string doesn't match the pattern, continue to the next iteration
+        if not pattern.match(slice_file): continue
+
         # Read file
         file_path = os.path.join(volume_folder, slice_file)
         slice_id = int(slice_file.split('_')[3].split('.')[0])
