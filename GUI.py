@@ -6,6 +6,8 @@ from extract_features import extract_radiomic_features, extract_conventional_fea
 from repeatability_test import perform_repeatability_test
 from svm import generate_dataset, train_SVM
 from settings import * 
+import logging
+import argparse
 
 class ImageGUI:
 
@@ -140,3 +142,20 @@ class ImageGUI:
 
         self.image.configure(image=photo)
         self.image.image = photo
+
+
+if __name__ == "__main__":
+    # Disable pyradiomics logging
+    logger = logging.getLogger("radiomics.glcm")
+    logger.setLevel(logging.ERROR)
+
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dev', action="store_true", help="Enable development mode. Displays SVM and feature selection buttons.")
+    args = parser.parse_args()
+    dev_mode = args.dev
+
+    # Run GUI
+    root = tk.Tk()
+    gui = ImageGUI(root, dev_mode)
+    root.mainloop()
