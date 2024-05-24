@@ -3,17 +3,15 @@
 
 This project focuses on analyzing brain MRI images from the BRATS2020 dataset. Radiomic features were extracted from these images, specifically targeting regions with tumor masks. These features were utilized to train a Support Vector Machine (SVM) model for classification tasks.
 
-## Demo
-
 
 ### How to run
-    1. Download the BraTS2020 data set from https://www.kaggle.com/datasets/awsaf49/brats2020-training-data/
-    2. Place the extracted folder at `./data`.
+1. Download the BraTS2020 data set from https://www.kaggle.com/datasets/awsaf49/brats2020-training-data/
+2. Place the extracted folder at `./data`.
     - Use `sort_slices.py` to sort the dataset subfolders by volume.
-    3. Install *requirements.txt*.
+3. Install *requirements.txt*.
     - In Conda: `conda create --name <env> --file requirements.txt`
     - Note: This project uses Python 3.9
-    4. Execute with `python glioma-diagnosis.py`.
+4. Execute with `python glioma-diagnosis.py`.
 
 
 ## Data Partition
@@ -26,20 +24,20 @@ After that we are taking 10 of each HGG and LGG for our hidden test.
 
 From the rest of the data, we can see a class imbalance where LGG is the minority. We used some techniques available to overcome this,
 
-    1. SMOTE Oversampling:
-        - Here we used oversampling method from inbuilt functionns from sci kit 
-        to create synthetic dataof the mionrity class.
-        
-    2. Stratified K- Fold:
-        - with the train_test_split() we can turn on the stratify
-        flag, unlike traditional K fold, stratified makes sure that
-        depending on how manny folds we want, each fold will contain
-        a balanced class labels .
+1. SMOTE Oversampling:
+    - Here we used oversampling method from inbuilt functionns from sci kit 
+    to create synthetic dataof the mionrity class.
     
-    3. Class Weight Balance:
-        - This flag is turned on our SVM model initialization. This
-        assigns a higher weight to the minority class, so the function 
-        is more inclined towards the minority class.
+2. Stratified K- Fold:
+    - with the train_test_split() we can turn on the stratify
+    flag, unlike traditional K fold, stratified makes sure that
+    depending on how manny folds we want, each fold will contain
+    a balanced class labels .
+
+3. Class Weight Balance:
+    - This flag is turned on our SVM model initialization. This
+    assigns a higher weight to the minority class, so the function 
+    is more inclined towards the minority class.
 
 We, eventually settled down with Class Weight Balance since all of it gave an almost equal level of accuracy
 
